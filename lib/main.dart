@@ -54,7 +54,7 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  void _recordStop() async {
+  _recordStop() async {
     //retrieve id
     SharedPreferences prefs = await SharedPreferences.getInstance();
     var recordID = prefs.getInt('recordID');
@@ -84,8 +84,9 @@ class _MyHomePageState extends State<MyHomePage> {
               currentLocation.latitude,
               currentLocation.longitude) /
           1000;
-
-      /*    var update_res = await SqliteService.db.updateRecord(
+      // var finish = jsonEncode(finishAddress);
+      // print('finish address >> $finish');
+      await SqliteService.db.updateRecord(
           NewLocationRecord(
               recordID: recordID,
               year: res.year,
@@ -104,12 +105,12 @@ class _MyHomePageState extends State<MyHomePage> {
           recordID);
 
       prefs.clear();
-      print('update_res=$update_res');*/
+      // print('update_res=$update_res');
       // setState(() {});
     }
   }
 
-  void _recordStart() async {
+  _recordStart() async {
     //get current location
     Position currentLocation = await Geolocator()
         .getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
@@ -182,12 +183,13 @@ class _MyHomePageState extends State<MyHomePage> {
                 Row(
                   children: <Widget>[
                     RaisedButton.icon(
-                        onPressed: () async {
+                        onPressed: () {
                           //   _recordStart();
                           if (!ifStart)
                             _recordStart();
                           else
                             _recordStop();
+
                           setState(() {
                             ifStart = !ifStart;
                           });
@@ -236,14 +238,19 @@ class _MyHomePageState extends State<MyHomePage> {
               future: SqliteService.db.retrieveAllRecords(),
               builder: (BuildContext context,
                   AsyncSnapshot<List<NewLocationRecord>> snapshot) {
+                // return Container();
                 // if (snapshot.connectionState == ConnectionState.done) {
                 if (snapshot.hasData) {
                   List<DataRow> listRows = [];
 
                   snapshot.data.forEach((item) {
-                    var startAddress = jsonDecode(item.startAddress)[0];
-                    print(item.distance);
-                    var finishAddress = jsonDecode(item.finishAddress)[0];
+                    var startAddress;
+                    var finishAddress;
+                    if (item.startAddress != '')
+                      startAddress = jsonDecode(item.startAddress)[0];
+                    if (item.finishAddress != '')
+                      finishAddress = jsonDecode(item.finishAddress)[0];
+                    //  var finishAddress = jsonDecode(item.finishAddress)[0];
                     var row = DataRow(
                       cells: [
                         DataCell(Text(item.year)),
@@ -251,10 +258,12 @@ class _MyHomePageState extends State<MyHomePage> {
                         DataCell(Text(item.day)),
                         DataCell(Text(item.startTime)),
                         DataCell(Text(item.finishTime)),
-                        DataCell(Text(
-                            'Near  ${startAddress['subThoroughfare']} ${startAddress['thoroughfare']},  ${startAddress['locality']}')),
-                        DataCell(Text(
-                            'Near  ${finishAddress['subThoroughfare']} ${finishAddress['thoroughfare']},  ${finishAddress['locality']}')),
+                        DataCell(Text(startAddress != null
+                            ? 'Near  ${startAddress['subThoroughfare']} ${startAddress['thoroughfare']},  ${startAddress['locality']}'
+                            : '')),
+                        DataCell(Text(finishAddress != null
+                            ? 'Near  ${finishAddress['subThoroughfare']} ${finishAddress['thoroughfare']},  ${finishAddress['locality']}'
+                            : '')),
                         DataCell(Text('${item.distance} KM')),
                         DataCell(Text(item.comment)),
                       ],
