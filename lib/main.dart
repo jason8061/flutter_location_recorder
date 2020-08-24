@@ -1,10 +1,15 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_location_recorder/model.dart';
 import 'package:flutter_location_recorder/service.dart';
+import 'package:flutter_location_recorder/viewcsv.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:csv/csv.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 //import 'package:geolocator/models/location_accuracy.dart';
 //import 'package:geolocator/models/position.dart';
@@ -106,7 +111,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
       prefs.clear();
       // print('update_res=$update_res');
-      // setState(() {});
+      setState(() {});
     }
   }
 
@@ -161,6 +166,7 @@ class _MyHomePageState extends State<MyHomePage> {
         comment: _controller.text));
 
     print(res);
+    setState(() {});
   }
 
   @override
@@ -190,9 +196,11 @@ class _MyHomePageState extends State<MyHomePage> {
                           else
                             _recordStop();
 
-                          setState(() {
+                          ifStart = !ifStart;
+
+                          /*     setState(() {
                             ifStart = !ifStart;
-                          });
+                          });*/
                         },
                         icon: Icon(ifStart ? Icons.pause : Icons.play_arrow),
                         label: Text('Start')),
@@ -220,9 +228,54 @@ class _MyHomePageState extends State<MyHomePage> {
                     RaisedButton(
                       onPressed: () async {
                         var res = await SqliteService.db.retrieveAllRecords();
-                        print(res);
+
+                        List<List<dynamic>> mylist = [
+                          <String>[
+                            'Year',
+                            'Month',
+                            'Day',
+                            'start',
+                            'finish',
+                            'start fr',
+                            'stop at',
+                            'distance',
+                            'comment'
+                          ],
+                          ...res.map((item) => [
+                                item.year,
+                                item.month,
+                                item.day,
+                                item.startTime,
+                                item.finishTime,
+                                item.startAddress,
+                                item.finishAddress,
+                                item.distance,
+                                item.comment
+                              ]),
+                        ];
+
+                        String csv = const ListToCsvConverter().convert(mylist);
+                        print('csv=$csv');
+
+                        final String dir =
+                            (await getApplicationDocumentsDirectory()).path;
+                        final String path =
+                            '/storage/emulated/0/Download/location_record.csv';
+                        print(path);
+
+                        final File file = File(path);
+                        var status = await Permission.storage.status;
+                        if (status.isUndetermined) {
+                          await Permission.storage.request();
+                        }
+
+                        if (status.isGranted) await file.writeAsString(csv);
+                        /*  Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => ViewCsv(path: path)));*/
                       },
-                      child: Text('Retrieve All'),
+                      child: Text('CSV'),
                     ),
                     Text('total: $totalRecords'),
                   ],
