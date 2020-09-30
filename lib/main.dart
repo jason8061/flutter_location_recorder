@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_location_recorder/bloc.dart';
 import 'package:flutter_location_recorder/model.dart';
 import 'package:flutter_location_recorder/service.dart';
-import 'package:flutter_location_recorder/viewcsv.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:csv/csv.dart';
@@ -45,6 +45,9 @@ class _MyHomePageState extends State<MyHomePage> {
   TextEditingController _controller = TextEditingController();
   bool ifStart = false;
   int totalRecords = 0;
+  final blocDemo = BlocDemo();
+
+  bool startProcessing = false;
   @override
   void initState() {
     // TODO: implement initState
@@ -57,9 +60,13 @@ class _MyHomePageState extends State<MyHomePage> {
     if (prefs.getInt('recordID') != null) {
       ifStart = true;
     }
+    setState(() {});
   }
 
   _recordStop() async {
+    setState(() {
+      startProcessing = true;
+    });
     //retrieve id
     SharedPreferences prefs = await SharedPreferences.getInstance();
     var recordID = prefs.getInt('recordID');
@@ -91,7 +98,25 @@ class _MyHomePageState extends State<MyHomePage> {
           1000;
       // var finish = jsonEncode(finishAddress);
       // print('finish address >> $finish');
-      await SqliteService.db.updateRecord(
+      /* await SqliteService.db.updateRecord(
+          NewLocationRecord(
+              recordID: recordID,
+              year: res.year,
+              month: res.month,
+              day: res.day,
+              startTime: res.startTime,
+              finishTime: finishTime,
+              startLat: res.startLat,
+              startLon: res.startLon,
+              finishLat: currentLocation.latitude,
+              finishLon: currentLocation.longitude,
+              startAddress: res.startAddress,
+              finishAddress: jsonEncode(finishAddress),
+              distance: distanceInMeters.toString(),
+              comment: _controller.text),
+          recordID);*/
+
+      await blocDemo.updateRecord(
           NewLocationRecord(
               recordID: recordID,
               year: res.year,
@@ -111,11 +136,18 @@ class _MyHomePageState extends State<MyHomePage> {
 
       prefs.clear();
       // print('update_res=$update_res');
-      setState(() {});
+      // setState(() {});
     }
+    setState(() {
+      startProcessing = false;
+    });
   }
 
   _recordStart() async {
+    setState(() {
+      startProcessing = true;
+    });
+
     //get current location
     Position currentLocation = await Geolocator()
         .getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
@@ -149,7 +181,7 @@ class _MyHomePageState extends State<MyHomePage> {
        
        
        */
-    var res = await SqliteService.db.newRecord(NewLocationRecord(
+    /* var res = await SqliteService.db.newRecord(NewLocationRecord(
         recordID: recordID,
         year: year,
         month: month,
@@ -165,8 +197,26 @@ class _MyHomePageState extends State<MyHomePage> {
         distance: '',
         comment: _controller.text));
 
-    print(res);
-    setState(() {});
+    print(res);*/
+    //  setState(() {});
+    await blocDemo.addRecord(NewLocationRecord(
+        recordID: recordID,
+        year: year,
+        month: month,
+        day: day,
+        startTime: startTime,
+        finishTime: '',
+        startLat: currentLocation.latitude,
+        startLon: currentLocation.longitude,
+        finishLat: 0,
+        finishLon: 0,
+        startAddress: jsonEncode(startAddress),
+        finishAddress: '',
+        distance: '',
+        comment: _controller.text));
+    setState(() {
+      startProcessing = false;
+    });
   }
 
   @override
@@ -178,182 +228,189 @@ class _MyHomePageState extends State<MyHomePage> {
       body:
           // Center is a layout widget. It takes a single child and positions it
           // in the middle of the parent.
-          Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          Container(
-            height: 150,
-            margin: EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    RaisedButton.icon(
-                        onPressed: () {
-                          //   _recordStart();
-                          if (!ifStart)
-                            _recordStart();
-                          else
-                            _recordStop();
+          Stack(children: [
+        startProcessing
+            ? Center(child: CircularProgressIndicator())
+            : Container(),
+        Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Container(
+              height: 180,
+              margin: EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      RaisedButton.icon(
+                          onPressed: () {
+                            //   _recordStart();
+                            if (!ifStart)
+                              _recordStart();
+                            else
+                              _recordStop();
 
-                          ifStart = !ifStart;
+                            // ifStart = !ifStart;
 
-                          /*     setState(() {
-                            ifStart = !ifStart;
-                          });*/
+                            setState(() {
+                              ifStart = !ifStart;
+                            });
+                          },
+                          icon: Icon(ifStart ? Icons.pause : Icons.play_arrow),
+                          label: Text('Start')),
+                      RaisedButton(
+                        onPressed: () async {
+                          await blocDemo.deleteRecords();
+                          // print(res);
+                          setState(() {});
                         },
-                        icon: Icon(ifStart ? Icons.pause : Icons.play_arrow),
-                        label: Text('Start')),
-                    RaisedButton(
-                      onPressed: () async {
-                        var res = await SqliteService.db.deleteAll();
-                        print(res);
-                        setState(() {});
-                      },
-                      child: Text('Delete All'),
-                    ),
-                    RaisedButton(
-                      onPressed: () async {
-                        var res =
-                            await SqliteService.db.getTotalNumberRecords();
-                        totalRecords = res;
-                        setState(() {});
-                      },
-                      child: Text('Totals'),
-                    )
-                  ],
-                ),
-                Row(
-                  children: <Widget>[
-                    RaisedButton(
-                      onPressed: () async {
-                        var res = await SqliteService.db.retrieveAllRecords();
-
-                        List<List<dynamic>> mylist = [
-                          <String>[
-                            'Year',
-                            'Month',
-                            'Day',
-                            'start',
-                            'finish',
-                            'start fr',
-                            'stop at',
-                            'distance',
-                            'comment'
-                          ],
-                          ...res.map((item) => [
-                                item.year,
-                                item.month,
-                                item.day,
-                                item.startTime,
-                                item.finishTime,
-                                item.startAddress,
-                                item.finishAddress,
-                                item.distance,
-                                item.comment
-                              ]),
-                        ];
-
-                        String csv = const ListToCsvConverter().convert(mylist);
-                        print('csv=$csv');
-
-                        final String dir =
-                            (await getApplicationDocumentsDirectory()).path;
-                        final String path =
-                            '/storage/emulated/0/Download/location_record.csv';
-                        print(path);
-
-                        final File file = File(path);
-                        var status = await Permission.storage.status;
-                        if (status.isUndetermined) {
-                          await Permission.storage.request();
-                        }
-
-                        if (status.isGranted) await file.writeAsString(csv);
-                        /*  Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => ViewCsv(path: path)));*/
-                      },
-                      child: Text('CSV'),
-                    ),
-                    Text('total: $totalRecords'),
-                  ],
-                ),
-                TextField(
-                  controller: _controller,
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: FutureBuilder(
-              future: SqliteService.db.retrieveAllRecords(),
-              builder: (BuildContext context,
-                  AsyncSnapshot<List<NewLocationRecord>> snapshot) {
-                // return Container();
-                // if (snapshot.connectionState == ConnectionState.done) {
-                if (snapshot.hasData) {
-                  List<DataRow> listRows = [];
-
-                  snapshot.data.forEach((item) {
-                    var startAddress;
-                    var finishAddress;
-                    if (item.startAddress != '')
-                      startAddress = jsonDecode(item.startAddress)[0];
-                    if (item.finishAddress != '')
-                      finishAddress = jsonDecode(item.finishAddress)[0];
-                    //  var finishAddress = jsonDecode(item.finishAddress)[0];
-                    var row = DataRow(
-                      cells: [
-                        DataCell(Text(item.year)),
-                        DataCell(Text(item.month)),
-                        DataCell(Text(item.day)),
-                        DataCell(Text(item.startTime)),
-                        DataCell(Text(item.finishTime)),
-                        DataCell(Text(startAddress != null
-                            ? 'Near  ${startAddress['subThoroughfare']} ${startAddress['thoroughfare']},  ${startAddress['locality']}'
-                            : '')),
-                        DataCell(Text(finishAddress != null
-                            ? 'Near  ${finishAddress['subThoroughfare']} ${finishAddress['thoroughfare']},  ${finishAddress['locality']}'
-                            : '')),
-                        DataCell(Text('${item.distance} KM')),
-                        DataCell(Text(item.comment)),
-                      ],
-                    );
-                    listRows.add(row);
-                  });
-
-                  return SingleChildScrollView(
-                    scrollDirection: Axis.vertical,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: DataTable(
-                        columns: [
-                          DataColumn(label: Text('Year')),
-                          DataColumn(label: Text('Month')),
-                          DataColumn(label: Text('Day')),
-                          DataColumn(label: Text('Start')),
-                          DataColumn(label: Text('Finish')),
-                          DataColumn(label: Text('Start fr')),
-                          DataColumn(label: Text('Stop at')),
-                          DataColumn(label: Text('Distance')),
-                          DataColumn(label: Text('Comment')),
-                        ],
-                        rows: listRows,
+                        child: Text('Delete All'),
                       ),
-                    ),
-                  );
-                } else if (snapshot.hasError) {
-                  return Text(snapshot.error);
-                } else
-                  return Text('No Record found');
-                // }
-              },
+                      /*  RaisedButton(
+                        onPressed: () async {
+                          var res = await blocDemo.getRecords();
+                          totalRecords = res;
+                          setState(() {});
+                        },
+                        child: Text('Totals $totalRecords'),
+                      )*/
+                      RaisedButton(
+                        onPressed: () async {
+                          var res = await SqliteService.db.retrieveAllRecords();
+
+                          List<List<dynamic>> mylist = [
+                            <String>[
+                              'Year',
+                              'Month',
+                              'Day',
+                              'start',
+                              'finish',
+                              'start fr',
+                              'stop at',
+                              'distance',
+                              'comment'
+                            ],
+                            ...res.map((item) => [
+                                  item.year,
+                                  item.month,
+                                  item.day,
+                                  item.startTime,
+                                  item.finishTime,
+                                  item.startAddress,
+                                  item.finishAddress,
+                                  item.distance,
+                                  item.comment
+                                ]),
+                          ];
+
+                          String csv =
+                              const ListToCsvConverter().convert(mylist);
+                          print('csv=$csv');
+
+                          final String dir =
+                              (await getApplicationDocumentsDirectory()).path;
+                          final String path =
+                              '/storage/emulated/0/Download/location_record.csv';
+                          print(path);
+
+                          final File file = File(path);
+                          var status = await Permission.storage.status;
+                          if (status.isUndetermined) {
+                            await Permission.storage.request();
+                          }
+
+                          if (status.isGranted)
+                            file.writeAsString(csv).then((value) {
+                              print('write file result $value');
+                            }).catchError((error) {
+                              print('write file error $error');
+                            });
+                          /*  Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => ViewCsv(path: path)));*/
+                        },
+                        child: Text('CSV'),
+                      ),
+                    ],
+                  ),
+                  TextField(
+                    controller: _controller,
+                  ),
+                ],
+              ),
             ),
-          )
-        ],
-      ),
+            Expanded(
+              child: StreamBuilder(
+                // future: SqliteService.db.retrieveAllRecords(),
+
+                stream: blocDemo.records,
+                builder: (BuildContext context,
+                    AsyncSnapshot<List<NewLocationRecord>> snapshot) {
+                  // return Container();
+                  // if (snapshot.connectionState == ConnectionState.done) {
+                  if (snapshot.hasData) {
+                    List<DataRow> listRows = [];
+
+                    snapshot.data.forEach((item) {
+                      var startAddress;
+                      var finishAddress;
+                      if (item.startAddress != '')
+                        startAddress = jsonDecode(item.startAddress)[0];
+                      if (item.finishAddress != '')
+                        finishAddress = jsonDecode(item.finishAddress)[0];
+                      //  var finishAddress = jsonDecode(item.finishAddress)[0];
+                      var row = DataRow(
+                        cells: [
+                          DataCell(Text(item.year)),
+                          DataCell(Text(item.month)),
+                          DataCell(Text(item.day)),
+                          DataCell(Text(item.startTime)),
+                          DataCell(Text(item.finishTime)),
+                          DataCell(Text(startAddress != null
+                              ? 'Near  ${startAddress['subThoroughfare']} ${startAddress['thoroughfare']},  ${startAddress['locality']}'
+                              : '')),
+                          DataCell(Text(finishAddress != null
+                              ? 'Near  ${finishAddress['subThoroughfare']} ${finishAddress['thoroughfare']},  ${finishAddress['locality']}'
+                              : '')),
+                          DataCell(Text('${item.distance} KM')),
+                          DataCell(Text(item.comment)),
+                        ],
+                      );
+                      listRows.add(row);
+                    });
+
+                    return SingleChildScrollView(
+                      scrollDirection: Axis.vertical,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: DataTable(
+                          columns: [
+                            DataColumn(label: Text('Year')),
+                            DataColumn(label: Text('Month')),
+                            DataColumn(label: Text('Day')),
+                            DataColumn(label: Text('Start')),
+                            DataColumn(label: Text('Finish')),
+                            DataColumn(label: Text('Start fr')),
+                            DataColumn(label: Text('Stop at')),
+                            DataColumn(label: Text('Distance')),
+                            DataColumn(label: Text('Comment')),
+                          ],
+                          rows: listRows,
+                        ),
+                      ),
+                    );
+                  } else if (snapshot.hasError) {
+                    return Text(snapshot.error);
+                  } else
+                    return Text('No Record found');
+                  // }
+                },
+              ),
+            )
+          ],
+        ),
+      ]),
 
       // This trailing comma makes auto-formatting nicer for build methods.
     );
